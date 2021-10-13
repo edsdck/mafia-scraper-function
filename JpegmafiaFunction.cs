@@ -1,16 +1,25 @@
 using System;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Extensions.Logging;
 
 namespace MafiaScraper.Jpegmafia
 {
-    public static class JpegmafiaFunction
+    public class JpegmafiaFunction
     {
-        [FunctionName("JpegmafiaFunction")]
-        public static void Run([TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, ILogger log)
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public JpegmafiaFunction(IHttpClientFactory httpClientFactory)
         {
-            log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+            _httpClientFactory = httpClientFactory;
+        }
+
+        [FunctionName("JpegmafiaFunction")]
+        public async Task Run([TimerTrigger("0 */5 * * * *")]TimerInfo myTimer, ILogger log)
+        {
+            var client = _httpClientFactory.CreateClient();
+            var req = await client.GetAsync("");
         }
     }
 }
