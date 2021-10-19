@@ -1,11 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using AngleSharp.Html.Parser;
-using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +12,10 @@ namespace MafiaScraper.Jpegmafia
 {
     public class JpegmafiaFunction
     {
+        private const string _databaseName = "mafia-scraper-db";
+        private const string _collectionName = "jpegmafiaProducts";
+        private static Uri _collectionUri = UriFactory.CreateDocumentCollectionUri(_databaseName, _collectionName);
+
         private readonly IHttpClientFactory _httpClientFactory;
 
         public JpegmafiaFunction(IHttpClientFactory httpClientFactory)
@@ -23,10 +26,33 @@ namespace MafiaScraper.Jpegmafia
         [FunctionName("JpegmafiaFunction")]
         public async Task Run([TimerTrigger("* * * * *")]TimerInfo myTimer,
         [CosmosDB(
-                databaseName: "mafia-scraper-db",
-                collectionName: "jpegmafiaProducts",
+                databaseName: _databaseName,
+                collectionName: _collectionName,
                 ConnectionStringSetting = "CosmosDbConnectionString")] DocumentClient documentClient,
         ILogger log)
+        {
+            var products = await ScrapeProducts();
+            var dbProducts = await QueryProducts(documentClient);
+
+            var titleIntersection = products.Intersect(dbProducts).ToList();
+
+            if (titleIntersection.Count != dbProducts.Count)
+            {
+                Console.WriteLine("new objects");
+            }
+            /*             foreach (var title in productTitles)
+                        {
+                            await documentClient.CreateDocumentAsync(_collectionUri, new
+                            {
+                                id = Guid.NewGuid().ToString(),
+                                name = title
+                            });
+                        } */
+
+            /* log.LogInformation(string.Join('\n', productTitles)); */
+        }
+
+        private async Task<IList<string>> ScrapeProducts()
         {
             var client = _httpClientFactory.CreateClient();
             var request = await client.GetAsync("https://shop.jpegmafia.net");
@@ -39,28 +65,14 @@ namespace MafiaScraper.Jpegmafia
                 .Where(d => d.ClassName == "thumb-title-wrap")
                 .Select(d => d.TextContent.ToLowerInvariant().Trim());
 
-            var collectionUri = UriFactory.CreateDocumentCollectionUri("mafia-scraper-db", "jpegmafiaProducts");
+            return productTitles.ToList();
+        }
 
-            var query = await documentClient.ReadDocumentFeedAsync(collectionUri);
+        private async Task<IList<string>> QueryProducts(DocumentClient documentClient)
+        {
+            var query = await documentClient.ReadDocumentFeedAsync(_collectionUri);
 
-            var productTitlesFromDb = query.Select(doc => (JpegmafiaProduct)(dynamic)doc).Select(product => product.Name).ToList();
-
-            var titleIntersection = productTitles.Intersect(productTitlesFromDb).ToList();
-
-            if (titleIntersection.Count != productTitlesFromDb.Count)
-            {
-                Console.WriteLine("new objects");
-            }
-/*             foreach (var title in productTitles)
-            {
-                await documentClient.CreateDocumentAsync(collectionUri, new
-                {
-                    id = Guid.NewGuid().ToString(),
-                    name = title
-                });
-            } */
-
-            /* log.LogInformation(string.Join('\n', productTitles)); */
+            return query.Select(doc => (JpegmafiaProduct)(dynamic)doc).Select(product => product.Name).ToList();
         }
     }
 }
