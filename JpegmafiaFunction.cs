@@ -36,9 +36,12 @@ namespace MafiaScraper.Jpegmafia
 
             var titleIntersection = products.Intersect(dbProducts).ToList();
 
-            if (titleIntersection.Count != dbProducts.Count)
+            log.LogInformation("TASK COMPLETED!");
+
+            if (titleIntersection.Count == dbProducts.Count &&
+                titleIntersection.Count == products.Count)
             {
-                Console.WriteLine("new objects");
+                return;
             }
             /*             foreach (var title in productTitles)
                         {

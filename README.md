@@ -3,3 +3,7 @@ https://docs.microsoft.com/en-us/azure/azure-functions/create-first-function-vs-
 https://adamstorr.azurewebsites.net/blog/why-wont-you-load-my-configuration-azure-functions
 
 https://docs.microsoft.com/en-us/azure/azure-functions/functions-dotnet-dependency-injection
+
+# sendgrid
+
+https://daniel-krzyczkowski.github.io/Cars-Island-Azure-Functions-Integration-With-SendGrid/
