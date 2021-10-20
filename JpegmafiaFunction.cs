@@ -7,6 +7,8 @@ using AngleSharp.Html.Parser;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
+using SendGrid;
+using SendGrid.Helpers.Mail;
 
 namespace MafiaScraper.Jpegmafia
 {
@@ -24,7 +26,7 @@ namespace MafiaScraper.Jpegmafia
         }
 
         [FunctionName("JpegmafiaFunction")]
-        public async Task Run([TimerTrigger("* * * * *")]TimerInfo myTimer,
+        public async Task Run([TimerTrigger("*/3 * * * *")]TimerInfo myTimer,
         [CosmosDB(
                 databaseName: _databaseName,
                 collectionName: _collectionName,
@@ -37,22 +39,14 @@ namespace MafiaScraper.Jpegmafia
             var titleIntersection = products.Intersect(dbProducts).ToList();
 
             log.LogInformation("TASK COMPLETED!");
-
+            
             if (titleIntersection.Count == dbProducts.Count &&
                 titleIntersection.Count == products.Count)
             {
                 return;
             }
-            /*             foreach (var title in productTitles)
-                        {
-                            await documentClient.CreateDocumentAsync(_collectionUri, new
-                            {
-                                id = Guid.NewGuid().ToString(),
-                                name = title
-                            });
-                        } */
 
-            /* log.LogInformation(string.Join('\n', productTitles)); */
+            await SendAnAlarm();
         }
 
         private async Task<IList<string>> ScrapeProducts()
@@ -76,6 +70,23 @@ namespace MafiaScraper.Jpegmafia
             var query = await documentClient.ReadDocumentFeedAsync(_collectionUri);
 
             return query.Select(doc => (JpegmafiaProduct)(dynamic)doc).Select(product => product.Name).ToList();
+        }
+
+        private async Task SendAnAlarm()
+        {
+            var apiKey = Environment.GetEnvironmentVariable("SendGridApiKey", EnvironmentVariableTarget.Process);
+            var fromEmail = Environment.GetEnvironmentVariable("SendGridFrom", EnvironmentVariableTarget.Process);
+            var toEmail = Environment.GetEnvironmentVariable("SendGridTo", EnvironmentVariableTarget.Process);
+
+            var client = new SendGridClient(apiKey);
+            var from = new EmailAddress(fromEmail);
+            var to = new EmailAddress(toEmail);
+
+            var subject = "NEW ITEMS AT JPEGMAFIA'S!";
+            var plainTextContent = "GO GO & OG!";
+            var msg = MailHelper.CreateSingleEmail(from, to, subject, plainTextContent, string.Empty);
+
+            var response = await client.SendEmailAsync(msg).ConfigureAwait(false);
         }
     }
 }
