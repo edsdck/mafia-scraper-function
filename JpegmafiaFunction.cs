@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using AngleSharp.Html.Parser;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Extensions.Logging;
 using SendGrid;
 using SendGrid.Helpers.Mail;
 
@@ -26,20 +25,17 @@ namespace MafiaScraper.Jpegmafia
         }
 
         [FunctionName("JpegmafiaFunction")]
-        public async Task Run([TimerTrigger("*/3 * * * *")]TimerInfo myTimer,
+        public async Task Run([TimerTrigger("*/2 * * * *")]TimerInfo myTimer,
         [CosmosDB(
                 databaseName: _databaseName,
                 collectionName: _collectionName,
-                ConnectionStringSetting = "CosmosDbConnectionString")] DocumentClient documentClient,
-        ILogger log)
+                ConnectionStringSetting = "CosmosDbConnectionString")] DocumentClient documentClient)
         {
             var products = await ScrapeProducts();
             var dbProducts = await QueryProducts(documentClient);
 
             var titleIntersection = products.Intersect(dbProducts).ToList();
 
-            log.LogInformation("TASK COMPLETED!");
-            
             if (titleIntersection.Count == dbProducts.Count &&
                 titleIntersection.Count == products.Count)
             {
