@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using AngleSharp.Html.Parser;
+using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.WebJobs;
 using SendGrid;
@@ -25,13 +26,14 @@ namespace MafiaScraper.Jpegmafia
         }
 
         [FunctionName("JpegmafiaFunction")]
-        public async Task Run([TimerTrigger("*/2 * * * *")]TimerInfo myTimer,
+        public async Task Run([TimerTrigger("*/3 * * * *")]TimerInfo myTimer,
         [CosmosDB(
                 databaseName: _databaseName,
                 collectionName: _collectionName,
                 ConnectionStringSetting = "CosmosDbConnectionString")] DocumentClient documentClient)
         {
             var products = await ScrapeProducts();
+
             var dbProducts = await QueryProducts(documentClient);
 
             var titleIntersection = products.Intersect(dbProducts).ToList();
@@ -42,7 +44,11 @@ namespace MafiaScraper.Jpegmafia
                 return;
             }
 
-            await SendAnAlarm();
+            var differences = products.Except(dbProducts).ToList();
+            var differencesInDb = dbProducts.Except(products).ToList();
+            var differencesInString = "New products " + string.Join(',', differences) + " Removed products " + string.Join(',', differencesInDb);
+
+            await SendAnAlarm(differencesInString);
         }
 
         private async Task<IList<string>> ScrapeProducts()
@@ -68,7 +74,7 @@ namespace MafiaScraper.Jpegmafia
             return query.Select(doc => (JpegmafiaProduct)(dynamic)doc).Select(product => product.Name).ToList();
         }
 
-        private async Task SendAnAlarm()
+        private async Task SendAnAlarm(string differences)
         {
             var apiKey = Environment.GetEnvironmentVariable("SendGridApiKey", EnvironmentVariableTarget.Process);
             var fromEmail = Environment.GetEnvironmentVariable("SendGridFrom", EnvironmentVariableTarget.Process);
@@ -79,7 +85,7 @@ namespace MafiaScraper.Jpegmafia
             var to = new EmailAddress(toEmail);
 
             var subject = "NEW ITEMS AT JPEGMAFIA'S!";
-            var plainTextContent = "GO GO & OG!";
+            var plainTextContent = "GO GO & OG!\n" + differences;
             var msg = MailHelper.CreateSingleEmail(from, to, subject, plainTextContent, string.Empty);
 
             var response = await client.SendEmailAsync(msg).ConfigureAwait(false);
